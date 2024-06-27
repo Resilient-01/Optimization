@@ -1,0 +1,106 @@
+model SmeltCo_production
+uses "mmxprs"
+
+! Assessment-1 by Yukta Bhange (S2554720) & Rasika Dalvi (S2511090)
+! The problem is solved and sensitivity analysis in done in this same script
+
+declarations
+	number_of_raw_materials = 4
+	raw_materials = 1..number_of_raw_materials
+	rm_names: array(raw_materials) of string                        !raw material names
+	number_of_alloys = 3
+	alloys = 1..number_of_alloys
+	alloy_names: array(alloys) of string                           !alloy names
+	!coeff is the coeffecient matrix, min_requirement consist the ratio of minimum amount of raw material specified
+	! max_requirement consist the ratio of maximum amount of raw material specified
+	coeff, min_requirement, max_requirement: array(alloys,raw_materials) of real 
+	selling_price, production_limit: array(alloys) of real !selling_price is the selling price of alloy, production_limit is production limit of alloy
+	rm_limit, rm_cost:array(raw_materials) of real !rm_limit is the limit on the avaibility of raw material, rm_cost is the cost price of the raw material
+	make: array(alloys) of mpvar ! decision variable - amount of alloy produced
+	use: array(alloys,raw_materials) of mpvar !decision variable - amount of raw material use in the corresponding alloy
+	rm_after_blending_loss: real !constant to account for blending loss
+	resource_ctrs: array(raw_materials) of linctr                 !shadow prices
+end-declarations
+
+!Intialize values from data file
+initialisations from "assessment_1_data.dat"
+	rm_names alloy_names coeff min_requirement max_requirement selling_price production_limit rm_limit rm_cost rm_after_blending_loss
+end-initialisations
+
+! Objective function 
+! revenue from selling the alloy - cost of total raw material procured
+total_selling_price:= sum(p in alloys) selling_price(p)*make(p) - sum(p in alloys, t in raw_materials) rm_cost(t)*coeff(p,t)*use(p,t)
+
+! Constraints
+
+! Material balance to consider 10% loss of material in blending process
+forall(p in alloys) make(p) - rm_after_blending_loss*(sum(t in raw_materials) coeff(p,t)*use(p,t)) = 0
+
+! Production capacity restrictions 
+forall(p in alloys) make(p) <= production_limit(p)
+
+!available raw material 
+forall(t in raw_materials) do
+	resource_ctrs(t) := sum(p in alloys) coeff(p,t)*use(p,t) <= rm_limit(t)
+end-do
+
+! Production specification and material content
+! minimum requirements of raw material in alloy formulation
+forall(p in alloys, t in raw_materials) do
+	if(min_requirement(p,t) >0) then
+		rm_after_blending_loss*coeff(p,t)*use(p,t) - min_requirement(p,t)*make(p) >=0
+	end-if
+end-do
+
+! maximum requirements of raw material in alloy formulation
+forall(p in alloys, t in raw_materials) do
+	if(max_requirement(p,t) >0) then
+		rm_after_blending_loss*coeff(p,t)*use(p,t) - max_requirement(p,t)*make(p) <=0
+	end-if
+end-do
+
+!maximize for net selling_price
+maximize(total_selling_price)
+
+! print statements
+writeln
+writeln("--------------------------------------SOLUTION--------------------------------------")
+writeln("SmeltCo ltd’s monthly production plan ")
+writeln
+writeln("Maximum achievable profit £", getobjval,".")
+writeln
+writeln("To achieve this profit, it is recommended to procure:")
+
+forall(t in raw_materials) do
+	writeln("  * ",getsol(sum(p in alloys) coeff(p,t)*use(p,t))," kg of ",rm_names(t),".")
+end-do
+
+writeln("Leading to a production of: ")
+forall(p in alloys) do !textfmt(r,0)
+	write("  * ",getsol(make(p)), " kg of ", alloy_names(p), " having ")
+	forall(t in raw_materials) do
+		if(getsol(use(p,t))>0) then
+			write(" ",100*rm_after_blending_loss*(getsol(use(p,t))/getsol(make(p))), "% of ", rm_names(t))
+		end-if
+	end-do
+	writeln
+end-do
+writeln
+
+! Sensitivity analysis for shadow prices
+forall(t in raw_materials) do
+	if(getslack(resource_ctrs(t))<0.0001) then
+		writeln("The shadow price of raw material, ",rm_names(t), " is ",getdual(resource_ctrs(t)),".")
+		a := getrange(XPRS_LOACT,resource_ctrs(t))
+		b := getrange(XPRS_UPACT,resource_ctrs(t))
+		! writeln("The range for the dual for resource ",rm_names(t), " is (",a,",",b,")",".")
+		writeln("SmeltCo Ltd. can procure extra ",rm_names(t)," at a maximum price of £", getdual(resource_ctrs(t)), " per kg.")
+		writeln
+	end-if
+end-do
+
+! forall(p in alloys) do
+! 	writeln("The reduced cost for product ",p," is ", getrcost(make(p)))
+! end-do
+
+end-model
