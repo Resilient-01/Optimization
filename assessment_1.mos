@@ -1,7 +1,7 @@
 model SmeltCo_production
 uses "mmxprs"
 
-! Assessment-1 by Yukta Bhange (S2554720) & Rasika Dalvi (S2511090)
+! Assessment-1 by Yukta Bhange (S2554720) 
 ! The problem is solved and sensitivity analysis in done in this same script
 
 declarations
