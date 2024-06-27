@@ -1,4 +1,5 @@
 # Optimization
 
-.mos files consists of code for the otimization model
+.mos files consist of code for the optimization model
+
 .dat files are the dataset used for the optimization model
